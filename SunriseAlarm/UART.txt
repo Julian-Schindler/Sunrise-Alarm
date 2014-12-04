@@ -1,0 +1,62 @@
+// UART - REDLABS.de - 15.03.2014
+// Aufruf einfach über -> printf("Hello World!);
+
+// INCLUDES
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdint.h>
+
+
+// DEFINITIONS
+#define BAUD 9600 // UART Baudrate 9600
+#define F_CPU 8000000 // Taktung 8Mhz
+
+// FUNCTIONS
+
+void UART_Init(unsigned int ubrr);
+static int uart_putchar(char c, FILE *stream);
+void put_char(unsigned char byte);
+static FILE mystdout = FDEV_SETUP_STREAM(uart_putchar, NULL, _FDEV_SETUP_WRITE); // brauchen wir für uart über printf
+
+// UART
+
+void ioinit (void)
+{
+    	//1 = output, 0 = input
+    	DDRD = 0b11111110; //PORTD (RX on PD0), PD2 is status output
+	UART_Init((unsigned int)(F_CPU/16/BAUD-1));		// ocillator fq/16/baud rate -1	
+}
+
+void UART_Init( unsigned int ubrr)
+{
+	// Set baud rate 
+	UBRR0H = ubrr>>8;
+	UBRR0L = ubrr;
+	
+	// Enable receiver and transmitter 
+	UCSR0A = (0<<U2X0);
+	UCSR0B = (1<<RXEN0)|(1<<TXEN0);
+	
+	// Set frame format: 8 bit, no parity, 1 stop bit,   
+	UCSR0C = (1<<UCSZ00)|(1<<UCSZ01);
+	
+	stdout = &mystdout; //Required for printf init
+}
+
+static int uart_putchar(char c, FILE *stream)
+{
+    if (c == '\n') uart_putchar('\r', stream);
+  
+    loop_until_bit_is_set(UCSR0A, UDRE0);
+    UDR0 = c;
+    
+    return 0;
+}
+
+void put_char(unsigned char byte)
+{
+	/* Wait for empty transmit buffer */
+	while ( !( UCSR0A & (1<<UDRE0)) );
+	/* Put data into buffer, sends the data */
+	UDR0 = byte;
+}
